@@ -1,9 +1,4 @@
 body {
       margin: 0;
-}
-
-.insideDiv {
-      position: absolute;
-      left: 20px;
-      top: 20px;
+      overflow: hidden;
 }

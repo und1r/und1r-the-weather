@@ -6,7 +6,14 @@ module.exports = {
     './src/**/*.{js,jsx,ts,tsx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'iss-background': '#020513',
+      },
+      backgroundColor: {
+        'iss-background': '#020513',
+      },
+    },
   },
   plugins: [],
 };
