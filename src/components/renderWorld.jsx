@@ -3,16 +3,23 @@ import React, {
 } from 'react';
 import Globe from 'react-globe.gl';
 import * as THREE from 'three';
+
 import './renderWorld.css';
 import globeImage from '../assets/earth-blue-marble.jpg';
 import backgroundSky from '../assets/night-sky.png';
 import ISSInfo from './ISSInfo';
+import Search from './Search';
+import CurrentWeather from './CurrentWeather';
+import Forecast from './Forecast';
+import {
+  updateUserLocationFromAPI,
+  updateISSLocationLoop,
+  updateISSCrewMembers,
+  updateWeatherData,
+} from '../utils/apiHelper';
 
-const EARTH_RADIUS_KM = 6371; // km
-const SAT_SIZE = 80; // km
-const TIME_STEP = 3 * 1000; // per frame
 const ISS_DIST = 0.15;
-const DEFAULT_CAMERA_ALTITUDE = 0.4;
+const DEFAULT_CAMERA_ALTITUDE = 0.7;
 
 function RenderGlobe() {
   const globeEl = useRef();
@@ -22,53 +29,8 @@ function RenderGlobe() {
   const [ISSCoordinates, setISSCoordinates] = useState({ latitude: 0.0, longitude: 0.0 });
   const [ISSCrewMembers, setISSCrewMembers] = useState({ crew: [] });
   const [isISSPageVisible, setisISSPageVisible] = useState(false);
-
-  const getISSLocation = () => {
-    const runEverySecond = setInterval(() => {
-      fetch('http://api.open-notify.org/iss-now.json')
-        .then((result) => result.json())
-        .then((json) => {
-          ISSCoordinates.latitude = json.iss_position.latitude;
-          ISSCoordinates.longitude = json.iss_position.longitude;
-          setISSCoordinates({ ...ISSCoordinates });
-        })
-        .catch((err) => {
-          console.log(err.message);
-        });
-    }, 10000);
-    return () => clearInterval(runEverySecond);
-  };
-
-  const getISSCrewMembers = () => {
-    fetch('http://api.open-notify.org/astros.json')
-      .then((result) => result.json())
-      .then((json) => {
-        const newCrew = [];
-        for (const dude of Object.entries(json.people)) {
-          if (dude[1].craft === 'ISS') {
-            newCrew.push(dude[1].name);
-          }
-        }
-        setISSCrewMembers({ crew: newCrew });
-      })
-      .catch((err) => {
-        console.log(err.message);
-      });
-  };
-
-  const getUsersLocationFromAPI = () => {
-    fetch(`https://api.ipgeolocation.io/ipgeo?apiKey=${process.env.REACT_APP_IPGEOLOCATION_API_KEY}`)
-      .then((result) => result.json())
-      .then((json) => {
-        console.log(json);
-        userCoordinates.latitude = json.latitude;
-        userCoordinates.longitude = json.longitude;
-        setUserCoordinates({ ...userCoordinates });
-      })
-      .catch((err) => {
-        console.log(err.message);
-      });
-  };
+  const [currentWeatherData, setCurrentWeatherData] = useState(null);
+  const [currentForecastData, setCurrentForecastData] = useState(null);
 
   const smoothCameraTransition = ({ ...newLocation }) => {
     const ROTATION_STEPS = 65.0;
@@ -92,14 +54,23 @@ function RenderGlobe() {
     }
     smoothCameraLoop();
   };
+
+  const handleOnSearchChange = (searchData) => {
+    const [lat, lng] = searchData.value.split(' ');
+
+    smoothCameraTransition({ lat, lng });
+    updateWeatherData(searchData, setCurrentWeatherData, setCurrentForecastData);
+  };
+
   const handleISSClick = ({ ...props }) => {
     smoothCameraTransition(props);
     setisISSPageVisible(!isISSPageVisible);
   };
+
   useEffect(() => {
-    getISSLocation();
-    getISSCrewMembers();
-    getUsersLocationFromAPI();
+    updateISSLocationLoop(setISSCoordinates);
+    updateISSCrewMembers(setISSCrewMembers);
+    updateUserLocationFromAPI(setUserCoordinates);
     setGlobeRadius(globeEl.current.getGlobeRadius());
     globeEl.current.pointOfView({ altitude: 3.5 });
   }, []);
@@ -115,6 +86,10 @@ function RenderGlobe() {
   useEffect(() => {
     smoothCameraTransition({ lat: userCoordinates.latitude, lng: userCoordinates.longitude });
   }, [userCoordinates]);
+
+  useEffect(() => {
+    if (isISSPageVisible) { smoothCameraTransition({ lat: ISSCoordinates.latitude, lng: ISSCoordinates.longitude }); }
+  }, [ISSCoordinates]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -136,8 +111,7 @@ function RenderGlobe() {
   });
 
   return (
-    <div className="width-100 height-100">
-      {/* <button className="bg-white" onClick={handleClick} type="button">test</button> */}
+    <div>
       <Globe
         ref={globeEl}
         globeImageUrl={globeImage}
@@ -153,6 +127,7 @@ function RenderGlobe() {
         objectThreeObject={createISS}
         onObjectClick={handleISSClick}
       />
+      {/* <button className="bg-white" onClick={handleClick} type="button">test</button> */}
       <div>
         <div className="absolute left-20 top-20">
           <h2 className="text-gray-500 text-lg">USER COORDS</h2>
@@ -162,6 +137,16 @@ function RenderGlobe() {
           <h2 className="text-gray-500 text-lg">{ISSCoordinates.latitude}</h2>
           <h2 className="text-gray-500 text-lg">{ISSCoordinates.longitude}</h2>
         </div>
+        <div className="absolute w-1/3 top-10 left-1/3 opacity-90">
+          <Search onSearchChange={handleOnSearchChange} />
+        </div>
+        {currentWeatherData
+        && (
+        <div className="absolute w-2/3 top-32 left-1/6 opacity-90">
+          <CurrentWeather weatherData={currentWeatherData} />
+          <Forecast />
+        </div>
+        )}
         <div className={`${isISSPageVisible ? '' : 'hidden'} bg-iss-background absolute
          right-20 top-20 max-w-lg p-5 opacity-80`}
         >

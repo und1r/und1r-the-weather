@@ -7,6 +7,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      spacing: {
+        '1/6': '16.66%',
+      },
       colors: {
         'iss-background': '#020513',
       },
